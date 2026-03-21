@@ -9,8 +9,6 @@ const handleServerError = (res, error) => {
 };
 
 exports.getTasks = async (req, res) => {
-  const { title, completed } = req.body;
-
   try {
     const tasks = await Task.find();
     return res.status(200).json({ success: true, data: tasks });
