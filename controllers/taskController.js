@@ -1,5 +1,17 @@
 const Task = require("../models/taskModel");
 
+// === Page Rendering ===
+exports.renderHomePage = async (req, res) => {
+  try {
+    const tasks = await Task.find().sort({ createdAt: -1 });
+    res.render("index", { tasks });
+  } catch (error) {
+    console.error(error);
+    res.status(500).send("Something went wrong");
+  }
+};
+
+
 const buildErrorResponse = (res, statusCode, message) =>
   res.status(statusCode).json({ success: false, message });
 

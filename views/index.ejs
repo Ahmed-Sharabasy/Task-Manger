@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="A simple and elegant task manager to organize your daily tasks.">
+  <title>Task Manager</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+  <!-- Toast Container -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <!-- Edit Modal -->
+  <div class="modal-overlay" id="editModal">
+    <div class="modal">
+      <h2 class="modal__title">✏️ Edit Task</h2>
+      <input
+        type="text"
+        class="modal__input"
+        id="editInput"
+        placeholder="Update task title..."
+        autocomplete="off"
+      >
+      <div class="modal__actions">
+        <button class="btn btn--ghost" id="editCancelBtn">Cancel</button>
+        <button class="btn btn--primary" id="editSaveBtn">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="container">
+    <!-- Header -->
+    <header class="header">
+      <div class="header__icon">📋</div>
+      <h1 class="header__title">Task Manager</h1>
+      <p class="header__subtitle">Stay organized, stay productive</p>
+    </header>
+
+    <!-- Stats -->
+    <div class="stats" id="stats">
+      <div class="stats__item">
+        <span class="stats__number stats__number--total" id="totalCount"><%= tasks.length %></span>
+        <span class="stats__label">Total</span>
+      </div>
+      <div class="stats__item">
+        <span class="stats__number stats__number--done" id="doneCount"><%= tasks.filter(t => t.completed).length %></span>
+        <span class="stats__label">Done</span>
+      </div>
+      <div class="stats__item">
+        <span class="stats__number stats__number--pending" id="pendingCount"><%= tasks.filter(t => !t.completed).length %></span>
+        <span class="stats__label">Pending</span>
+      </div>
+    </div>
+
+    <!-- Add Task Form -->
+    <form class="add-form" id="addForm">
+      <input
+        type="text"
+        class="add-form__input"
+        id="taskInput"
+        placeholder="What needs to be done?"
+        autocomplete="off"
+        required
+      >
+      <button type="submit" class="add-form__btn" id="addTaskBtn">+ Add Task</button>
+    </form>
+
+    <!-- Task List -->
+    <div class="task-list" id="taskList">
+      <% if (tasks.length === 0) { %>
+        <div class="task-list__empty" id="emptyState">
+          <span class="task-list__empty-icon">🎯</span>
+          <p class="task-list__empty-text">No tasks yet</p>
+          <p class="task-list__empty-hint">Add your first task above to get started!</p>
+        </div>
+      <% } else { %>
+        <% tasks.forEach((task, index) => { %>
+          <div class="task-card <%= task.completed ? 'task-card--completed' : '' %>" data-id="<%= task._id %>" style="animation-delay: <%= index * 0.05 %>s">
+            <label class="task-card__checkbox">
+              <input type="checkbox" <%= task.completed ? 'checked' : '' %> onchange="toggleTask('<%= task._id %>', this.checked)">
+              <span class="task-card__checkmark">✓</span>
+            </label>
+            <div class="task-card__content">
+              <span class="task-card__title"><%= task.title %></span>
+              <span class="task-card__date"><%= new Date(task.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) %></span>
+            </div>
+            <div class="task-card__actions">
+              <button class="btn-icon btn-icon--edit" onclick="openEditModal('<%= task._id %>', `<%- task.title.replace(/`/g, '\\`').replace(/\\/g, '\\\\') %>`)" title="Edit">✏️</button>
+              <button class="btn-icon btn-icon--delete" onclick="deleteTask('<%= task._id %>')" title="Delete">🗑️</button>
+            </div>
+          </div>
+        <% }) %>
+      <% } %>
+    </div>
+  </div>
+
+  <script>
+    const API_URL = '/api/tasks';
+
+    // === Toast Notifications ===
+    function showToast(message, type = 'success') {
+      const container = document.getElementById('toastContainer');
+      const toast = document.createElement('div');
+      toast.className = `toast toast--${type}`;
+      toast.innerHTML = `<span>${type === 'success' ? '✅' : '❌'}</span> ${message}`;
+      container.appendChild(toast);
+      setTimeout(() => {
+        toast.classList.add('toast--removing');
+        setTimeout(() => toast.remove(), 300);
+      }, 2500);
+    }
+
+    // === Update Stats ===
+    function updateStats() {
+      const cards = document.querySelectorAll('.task-card');
+      const total = cards.length;
+      const done = document.querySelectorAll('.task-card--completed').length;
+      document.getElementById('totalCount').textContent = total;
+      document.getElementById('doneCount').textContent = done;
+      document.getElementById('pendingCount').textContent = total - done;
+    }
+
+    // === Add Task ===
+    document.getElementById('addForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const input = document.getElementById('taskInput');
+      const title = input.value.trim();
+      if (!title) return;
+
+      try {
+        const res = await fetch(API_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title })
+        });
+        const data = await res.json();
+        if (data.success) {
+          input.value = '';
+          showToast('Task added!');
+          // Reload to re-render from server
+          location.reload();
+        } else {
+          showToast(data.message || 'Failed to add task', 'error');
+        }
+      } catch {
+        showToast('Network error', 'error');
+      }
+    });
+
+    // === Toggle Task ===
+    async function toggleTask(id, completed) {
+      try {
+        const res = await fetch(`${API_URL}/${id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ completed })
+        });
+        const data = await res.json();
+        if (data.success) {
+          const card = document.querySelector(`[data-id="${id}"]`);
+          card.classList.toggle('task-card--completed', completed);
+          updateStats();
+          showToast(completed ? 'Task completed! 🎉' : 'Task reopened');
+        }
+      } catch {
+        showToast('Failed to update task', 'error');
+        location.reload();
+      }
+    }
+
+    // === Delete Task ===
+    async function deleteTask(id) {
+      if (!confirm('Delete this task?')) return;
+      try {
+        const res = await fetch(`${API_URL}/${id}`, { method: 'DELETE' });
+        const data = await res.json();
+        if (data.success) {
+          const card = document.querySelector(`[data-id="${id}"]`);
+          card.style.animation = 'fadeIn 0.3s ease-out reverse forwards';
+          setTimeout(() => {
+            card.remove();
+            updateStats();
+            // Show empty state if no tasks left
+            if (document.querySelectorAll('.task-card').length === 0) {
+              document.getElementById('taskList').innerHTML = `
+                <div class="task-list__empty" id="emptyState">
+                  <span class="task-list__empty-icon">🎯</span>
+                  <p class="task-list__empty-text">No tasks yet</p>
+                  <p class="task-list__empty-hint">Add your first task above to get started!</p>
+                </div>
+              `;
+            }
+          }, 300);
+          showToast('Task deleted');
+        }
+      } catch {
+        showToast('Failed to delete task', 'error');
+      }
+    }
+
+    // === Edit Task Modal ===
+    let editingTaskId = null;
+
+    function openEditModal(id, title) {
+      editingTaskId = id;
+      document.getElementById('editInput').value = title;
+      document.getElementById('editModal').classList.add('active');
+      document.getElementById('editInput').focus();
+    }
+
+    function closeEditModal() {
+      editingTaskId = null;
+      document.getElementById('editModal').classList.remove('active');
+    }
+
+    document.getElementById('editCancelBtn').addEventListener('click', closeEditModal);
+
+    document.getElementById('editModal').addEventListener('click', (e) => {
+      if (e.target === e.currentTarget) closeEditModal();
+    });
+
+    document.getElementById('editInput').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') saveEdit();
+      if (e.key === 'Escape') closeEditModal();
+    });
+
+    document.getElementById('editSaveBtn').addEventListener('click', saveEdit);
+
+    async function saveEdit() {
+      const title = document.getElementById('editInput').value.trim();
+      if (!title || !editingTaskId) return;
+
+      try {
+        const res = await fetch(`${API_URL}/${editingTaskId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title })
+        });
+        const data = await res.json();
+        if (data.success) {
+          const card = document.querySelector(`[data-id="${editingTaskId}"]`);
+          card.querySelector('.task-card__title').textContent = title;
+          closeEditModal();
+          showToast('Task updated!');
+        } else {
+          showToast(data.message || 'Failed to update', 'error');
+        }
+      } catch {
+        showToast('Network error', 'error');
+      }
+    }
+
+    // === Keyboard shortcut: focus input with / ===
+    document.addEventListener('keydown', (e) => {
+      if (e.key === '/' && document.activeElement.tagName !== 'INPUT') {
+        e.preventDefault();
+        document.getElementById('taskInput').focus();
+      }
+    });
+  </script>
+</body>
+</html>

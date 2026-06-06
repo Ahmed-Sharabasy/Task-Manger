@@ -1,11 +1,20 @@
 const express = require("express");
+const path = require("path");
 const dotenv = require("dotenv");
 const mongoose = require("mongoose");
 const taskRoutes = require("./routes/taskRoutes");
+const { renderHomePage } = require("./controllers/taskController");
 
 dotenv.config({ path: "./config.env" });
 
 const app = express();
+
+// View engine setup
+app.set("view engine", "ejs");
+app.set("views", path.join(__dirname, "views"));
+
+// Static files
+app.use(express.static(path.join(__dirname, "public")));
 
 // Database Connection
 const connectDB = async () => {
@@ -29,15 +38,10 @@ connectDB();
 
 app.use(express.json());
 
-// Health check
-app.get("/", (req, res) => {
-  res.status(200).json({
-    success: true,
-    message: "Task Manger API is running successfully",
-    version: "1.0.0",
-  });
-});
+// Page routes
+app.get("/", renderHomePage);
 
+// API routes
 app.use("/api/tasks", taskRoutes);
 
 const PORT = process.env.PORT || 3000;
